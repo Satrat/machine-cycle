@@ -1,0 +1,102 @@
+require "sched"
+require "Note.srp"
+require "Node.srp"
+
+e_minor = [4,6,7,9,11,0,2]
+e_melodic = [1,3]
+
+class Chain:
+	var start
+	var curr
+	var alter_prob
+	var skip_prob
+
+	def init(arr, a_p,s_p):
+		node = Node(arr[len(arr) - 1], [], [])
+		for i = len(arr) - 2 to -1 by -1:
+			note = arr[i]
+			prev_node = Node(note, [node], [1.0])
+			node = prev_node
+
+		this.start = node 
+		this.curr = node 
+		this.alter_prob = a_p
+		this.skip_prob = s_p
+
+	def get_start():
+		return this.start
+
+	def print_chain():
+		curr_node = this.start
+		print "Node", curr_node
+		while(curr_node.get_true_next() != nil):
+			print "Node", curr_node.next
+			curr_node = curr_node.get_true_next()
+
+	def setup_markov():
+		curr_node = this.start
+
+		while(curr_node.get_true_next() != nil):
+			next_node = curr_node.get_true_next()
+
+			curr_note = curr_node.get_note()
+			curr_pitch = curr_note.get_pitch()
+
+			next_note = next_node.get_note()
+			next_pitch = next_note.get_pitch()
+
+			diff = next_pitch - curr_pitch
+
+			mid_start = (next_note.get_start() + curr_note.get_start()) / 2
+			mid_end = next_note.get_start()
+			mid_vel = int(abs(next_note.get_vel() + curr_note.get_vel()) / 2)
+
+			#neighbors
+			if(diff == 0):
+				pitch_class = curr_pitch % 12
+				if(pitch_class == e_minor[0] or pitch_class == e_minor[5]):
+					LN = Note(curr_pitch - 1, mid_vel, mid_start, mid_end)
+					UN = Note(curr_pitch + 2, mid_vel, mid_start, mid_end)
+				elif(pitch_class == e_melodic[0]):
+					LN = Note(curr_pitch - 2, mid_vel, mid_start, mid_end)
+					UN = Note(curr_pitch + 2, mid_vel, mid_start, mid_end)
+				elif(pitch_class == e_minor[4]):
+					LN = Note(curr_pitch - 2, mid_vel, mid_start, mid_end)
+					UN = Note(curr_pitch + 1, mid_vel, mid_start, mid_end)
+				else:
+					lp = pitch_class - 2
+					if(lp % 12 not in e_minor and lp % 12 not in e_melodic):
+					 	lp = lp + 1
+					lp_offset = pitch_class - lp
+					LN = Note(curr_pitch - lp_offset, mid_vel, mid_start, mid_end)
+
+					up = pitch_class + 2
+					if(up % 12 not in e_minor and up % 12 not in e_melodic):
+					 	up = up - 1
+					up_offset = up - pitch_class
+					UN = Note(curr_pitch + up_offset, mid_vel, mid_start, mid_end)
+
+				UN_node = Node(UN, [next_node], [1.0])
+				LN_node = Node(LN, [next_node], [1.0])
+
+				curr_node.next[next_node] = 1.0 - alter_prob
+				curr_node.next[UN_node] = alter_prob / 2.
+				curr_node.next[LN_node] = alter_prob / 2.
+
+			#passing tones
+			elif(diff > 2):
+				mid_note = int((next_pitch + curr_pitch) / 2)
+				if(mid_note % 12 not in e_minor and mid_note % 12 not in e_melodic):
+					mid_note = mid_note + 1
+
+				passing_note = Note(mid_note, mid_vel, mid_start, mid_end)
+				passing_node = Node(passing_note, [next_node], [1.0])
+				curr_node.next[passing_node] = alter_prob
+				curr_node.next[next_node] = 1.0 - alter_prob
+
+			curr_node = next_node
+
+
+
+
+

@@ -1,0 +1,28 @@
+require "sched"
+require "Note.srp"
+
+class Node:
+	var note
+	var next
+	var true_next
+
+	def init(n, nxt_nodes, nxt_probs):
+		this.note = n
+		if(nxt_nodes == []):
+			this.next = {} 
+			this.true_next = nil
+		else:
+			this.true_next = nxt_nodes[0]
+			this.next = {}
+			for i = 0 to len(nxt_nodes):
+				next_n = nxt_nodes[i]
+				next_p = nxt_probs[i]
+				this.next[next_n] = next_p
+
+	def get_true_next():
+		return this.true_next
+
+	def get_note():
+		return this.note
+
+

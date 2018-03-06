@@ -1,0 +1,33 @@
+require "sched"
+
+class Note:
+	var pitch
+	var velocity
+	var on_time
+	var off_time
+
+	def init(p,v,on,off):
+		this.pitch = p
+		this.velocity = v
+		this.on_time = on
+		this.off_time = off
+
+	def get_start():
+		return this.on_time
+
+	def get_pitch():
+		return this.pitch
+
+	def get_stop():
+		return this.off_time
+
+	def get_vel():
+		return this.velocity
+
+	def create_MIDI_on_msg():
+		note_on = chr(0x90) + chr(pitch) + chr(velocity)
+		return [on_time, note_on]
+
+	def create_MIDI_off_msg():
+		note_off = chr(0x80) + chr(pitch) + chr(0x0)
+		return [off_time, note_off]

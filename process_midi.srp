@@ -1,0 +1,352 @@
+require "sched"
+require "Note.srp"
+require "Node.srp"
+require "Chain.srp"
+
+#returns delay in seconds
+def bpm_to_delay(bpm):
+    bps = bpm / 60.
+    spb = 1. / bps
+
+    return spb
+
+#returns measure length in seconds
+def get_meas_len(bpm, beats):
+    return bpm_to_delay(bpm) * beats
+
+tempo = 80 #in bpm
+numBeats = 4
+delay = bpm_to_delay(tempo) #in seconds
+
+curr_measure = [] #notes received in current meassure
+curr_seen = [] #note on messages received during current measure, no repeats
+meas_len = get_meas_len(tempo, numBeats) #in seconds
+measure_table = [[],[],[],[],[]] #last 5 recorded measures
+measure_chains = [[],[],[],[],[]]
+currPos = 0 #index in measure_table currently being recorded
+
+half_prob = 0.0 #probability of playing half tempo
+double_prob = 0.0 #probability of playing double tempo
+normal_prob = 1.0 #porbability of playing normal tempo
+offbeat_prob = 0.3 #probability of playing on an upbeat
+onbeat_prob = 1.0 #probability of playing on a downbeat
+skip_prob = 0.1 #probability of skipping a note in the motif
+alter_prob = 0.3
+
+e_minor = [4,6,7,9,11,0,2]
+e_melodic = [1,3]
+
+
+def is_note_msg(msg):
+    arr = decode(msg)
+    msg_type = (arr[0] & 0xF0) >> 4
+
+    # note on, append to curr_seen
+    if(msg_type == 9):
+        return 9
+
+    #note off
+    elif(msg_type == 8):
+        return 8
+
+    #control change
+    elif(msg_type == 11):
+        return 11
+
+    #anything else
+    return 0
+
+#quantize note on messages to the nearest sixteenth note
+def quantize_on(bpm, beats, time):
+    m_len = int(get_meas_len(bpm, beats) * 1000)
+    print "m_len", m_len
+    sixteenth = int(m_len / (beats * 4))
+    print "sixteeth", sixteenth
+    excess = int(time * 1000) % sixteenth
+    print "excess", excess
+    if(excess > sixteenth / 2):
+        quantized = (int(time * 1000) - excess) + sixteenth
+    else:
+        quantized = int(time * 1000) - excess
+
+    print "time", time, "quantized", quantized / 1000.
+    return quantized / 1000.
+
+#quantize note off messages to sixteen notes, always round up a sixteenth
+#to be sure note off message doesn't occur before the note on messages
+def quantize_off(bpm, beats, time): 
+    m_len = int(get_meas_len(bpm, beats) * 1000)
+    sixteenth = int(m_len / (beats * 4))
+    excess = int(time * 1000) % sixteenth
+    quantized = (int(time * 1000)-excess) + sixteenth
+
+    print "time", time, "quantized", quantized / 1000.
+    return quantized / 1000.
+
+def compare_notes(n1, n2):
+    t1 = n1.get_start()
+    t2 = n2.get_start()
+
+    return (t1 >= t2)
+
+#poll for incoming MIDI messages
+def poll(midi_in, midi_out):
+    timestamp = sched_rtime - start
+    if(timestamp > meas_len):
+        start = time_get()
+        #start = sched_rtime
+        if(curr_measure != []):
+            #make sure all notes are off at the end of the measure
+            #for n in curr_seen:
+            #    curr_measure.append([meas_len,chr(0x80) + chr(n) + chr(0)])
+
+            vel_dict = {}
+            start_dict = {}
+            note_list = []
+
+            for n in curr_measure:
+                t = n[0]
+                m = n[1]
+                if(is_note_msg(m) == 9):
+                    msg_arr = decode(m)
+                    pitch = msg_arr[1]
+                    velocity = msg_arr[2]
+                    vel_dict[pitch] = velocity
+                    start_dict[pitch] = n[0]
+                elif(is_note_msg(m) == 8 and vel_dict.get(pitch) != nil):
+                    msg_arr = decode(m)
+                    pitch = msg_arr[1]
+                    velocity = vel_dict[pitch]
+                    start_time = start_dict[pitch]
+                    stop_time = t
+                    vel_dict.remove(pitch)
+                    start_dict.remove(pitch)
+
+                    note = Note(pitch, velocity, start_time, stop_time)
+                    note_list.append(note)
+
+            for pitch in start_dict.keys():
+                velocty = vel_dict[pitch]
+                start_time = start_dict[pitch]
+                stop_time = meas_len 
+
+                note = Note(pitch, velocity, start_time, stop_time)
+                note_list.append(note)
+
+            if(len(note_list) >= 1):
+                notes_sorted = note_list.sort('compare_notes')
+                chain = Chain(notes_sorted, alter_prob, skip_prob)
+                chain.setup_markov()
+                measure_chains[currPos] = chain
+                measure_table[currPos] = curr_measure.copy()
+                currPos = (currPos + 1) % 5
+
+        curr_measure = []
+        curr_seen = []
+
+    #all messages but note on/off are ignored
+    while(midi_poll(midi_in)):
+        data = midi_read(midi_in)
+        data[0] = timestamp
+        arr = decode(data[1])
+        if(data != nil):
+            #note on
+            if(is_note_msg(data[1]) == 9):
+
+                #add to curr seen if not already there
+                if(arr[1] not in curr_seen):
+                        curr_seen.append(arr[1])
+
+                #print "old data", data[0]
+                #data[0] = quantize_on(tempo, numBeats, data[0])
+                #print "new data", data[0]
+                curr_measure.append(data)
+
+            #note off
+            elif(is_note_msg(data[1]) == 8):
+                #print "old data", data[0]
+                #data[0] = quantize_off(tempo, numBeats, data[0])
+                #print "new data", data[0]
+                curr_measure.append(data)
+
+    #poll for work again
+    sched_cause(0.02, nil, 'poll', midi_in, midi_out)
+ 
+#decodes MIDI messages into an array
+def decode(msg):
+    return [ord(msg[0]), ord(msg[1]), ord(msg[2])]
+
+def create_imp(chain):
+    curr = chain.get_start()
+    imp = [curr.get_note().create_MIDI_on_msg(), curr.get_note().create_MIDI_off_msg()]
+
+    while(len(curr.next.keys()) != 0):
+        r = random()
+        curr_dict = curr.next
+        offset = 0
+        for n in curr_dict.keys():
+            if(r < curr_dict[n] + offset):
+                note = n.get_note()
+                #print "pitch", note.pitch, "vel", note.velocity
+                imp.append(note.create_MIDI_on_msg())
+                imp.append(note.create_MIDI_off_msg())
+                curr = n
+                r = 2.0
+            else:
+                offset = offset + curr_dict[n]
+
+    return imp.sort()
+
+#process one beat
+def beat(midi_out,i):
+    #downbeat
+    if(i % numBeats == 0):
+        #send a control change message with a value of 1 to channel 3
+        #channel is arbitary
+        beat_message = chr(0xB2) + chr(1)
+        midi_write(midi_out, 0, beat_message)
+
+
+        if(random() < onbeat_prob):
+            r = int(random() * 5)
+            if(measure_table[r] != []):
+                #curr_imp = measure_table[r].copy()
+                curr_imp = create_imp(measure_chains[r])
+                if random() < double_prob:
+                    t = 0.5
+                elif random() < half_prob:
+                    t = 2
+                else:
+                    t = 1
+
+                #play a motif
+                sched_cause(curr_imp[0][0] * t, nil, 'play_improv', midi_out, 0, curr_imp, t)
+    
+    #not a downbeat
+    else:
+        #send a control change message with a value of 0 to channel 3
+        #channel is arbitary
+        note = chr(0xB2) + chr(0)
+        midi_write(midi_out, 0, note)
+
+        r = int(random() * 5)
+        if(measure_table[r] != [] and random() < offbeat_prob):
+            #curr_imp = measure_table[r].copy()
+            curr_imp = create_imp(measure_chains[r])
+            if random() < double_prob:
+                t = 0.5
+            elif random() < half_prob:
+                t = 2
+            else:
+                t = 1
+
+            #play a motif
+            sched_cause(curr_imp[0][0] * t, nil, 'play_improv', midi_out, 0, curr_imp, t)
+     
+    #schedule the next beat   
+    sched_cause(delay, nil, 'beat', midi_out, i + 1)
+
+
+#play a phrase based on a motif
+def play_improv(midi_out, i,curr,tempo):
+    arr = decode(curr[i][1])
+    midi_type = is_note_msg(curr[i][1])
+
+    #never skip note off messages
+    if(random() < (1 - skip_prob) or midi_type == 8):
+        midi_write(midi_out, 0, curr[i][1])
+
+    #increment note index in curr improv 
+    i = i + 1
+    if(i < len(curr)):
+        next_delay = curr[i][0] - curr[i-1][0]
+
+        #schedule next note in motif
+        sched_cause(next_delay * tempo, nil, 'play_improv', midi_out, i, curr,tempo)
+
+#parse control messages
+def control(midi_control):
+    while(midi_poll(midi_control)):
+        data = midi_read(midi_control)
+        if(data != nil):
+            arr = decode(data[1])
+            msg_type = is_note_msg(data[1])
+
+            #controller number
+            #btw arr[2] is the controller value
+            control = arr[1]
+            controller_val = arr[2]
+
+            #check for control messages
+            if(msg_type == 11 and control == 3):
+                onbeat_prob = controller_val / 127
+                print "onbeat_prob: ",onbeat_prob
+
+            elif(msg_type == 11 and control == 4):
+                offbeat_prob = controller_val / (127)
+                print "offbeat_prob", offbeat_prob
+
+            elif(msg_type == 11 and control == 5):
+                double_prob = controller_val / (127 * 2)
+                half_prob = controller_val / (127 * 2)
+                print "double_prob", double_prob
+                normal_prob = 1 - half_prob - double_prob
+
+
+            #actually not a control change message a note on message wow
+            elif(msg_type == 9 and arr[1] == 20):
+                skip_prob = 0
+                print "skip_prob", skip_prob
+
+            elif(msg_type == 9 and arr[1] == 21):
+                skip_prob = 0.05
+                print "skip_prob", skip_prob
+
+            elif(msg_type == 9 and arr[1] == 22):
+                skip_prob = 0.1
+                print "skip_prob", skip_prob
+
+            elif(msg_type == 9 and arr[1] == 23):
+                skip_prob = 0.2
+                print "skip_prob", skip_prob
+
+
+    sched_cause(.02, nil, 'control', midi_control)
+
+
+def main()
+
+    numDev = midi_count_devices()
+    for i = 0 to numDev
+        print i,": ", midi_get_device_info(i)
+    print "Select device number for input: "
+    devIn = stdin.readvalue()
+    print "Select device number for output: "
+    devOut = stdin.readvalue()
+    print "Select device number for control: "
+    devControl = stdin.readvalue()
+
+    var midi_in = midi_create()
+    if(midi_open_input(midi_in, devIn, 100) != 0)
+        print "Error opening midi_in port"
+        return
+
+    var midi_out = midi_create()
+    if(midi_open_output(midi_out, devOut, 100, 10) != 0)
+        print "Error opening midi_out port"
+        return
+
+    var midi_control = midi_create()
+    if(midi_open_input(midi_control, devControl, 100) != 0)
+        print "Error opening midi_control port"
+        return
+
+    random_seed(time_date()[0])
+    sched_init()
+    start = time_get()
+    sched_cause(0, nil, 'beat', midi_out, 0)
+    sched_cause(0, nil, 'poll', midi_in, midi_out)
+    sched_cause(0,nil, 'control', midi_control)
+    sched_run()
+
+main()
