@@ -22,6 +22,7 @@ class Chain:
 		this.curr = node 
 		this.alter_prob = a_p
 		this.skip_prob = s_p
+		random_seed(time_get())
 
 	def get_start():
 		return this.start
@@ -45,13 +46,16 @@ class Chain:
 			next_note = next_node.get_note()
 			next_pitch = next_note.get_pitch()
 
-			diff = next_pitch - curr_pitch
+			diff = abs(next_pitch - curr_pitch)
 
 			mid_start = (next_note.get_start() + curr_note.get_start()) / 2
 			mid_end = next_note.get_start()
 			mid_vel = int(abs(next_note.get_vel() + curr_note.get_vel()) / 2)
 
 			#neighbors
+			rand = random()
+			print rand
+
 			if(diff == 0):
 				pitch_class = curr_pitch % 12
 				if(pitch_class == e_minor[0] or pitch_class == e_minor[5]):
@@ -83,8 +87,46 @@ class Chain:
 				curr_node.next[UN_node] = alter_prob / 2.
 				curr_node.next[LN_node] = alter_prob / 2.
 
-			#passing tones
-			elif(diff > 2):
+			#passing tone, longer jump
+			#needs to be tested
+
+			elif(diff > 5):
+				dist = (next_note.get_start() - curr_note.get_start())
+				dist_1 = dist / 3.
+				dist_2 = 2 * dist / 3.
+				mid_start_1 = curr_note.get_start() + dist_1
+				mid_start_2 = curr_note.get_start() + dist_2
+
+				mid_note = int((next_pitch + curr_pitch) / 2)
+				mid_note_1 = int((curr_pitch + mid_note) / 2)
+				mid_note_2 = int((next_pitch + mid_note) / 2)
+				if(mid_note_1 % 12 not in e_minor and mid_note_1 % 12 not in e_melodic):
+					mid_note_1 = mid_note_1 + 1
+				if(mid_note_2 % 12 not in e_minor and mid_note_2 % 12 not in e_melodic):
+					mid_note_2 = mid_note_2 - 1
+
+				passing_note_1 = Note(mid_note_1, mid_vel, mid_start_1, mid_start_2)
+				passing_note_2 = Note(mid_note_2, mid_vel, mid_start_2, mid_end)
+
+				passing_node_2 = Node(passing_note_2, [next_node], [1.0])
+				passing_node_1 = Node(passing_note_1, [passing_node_2], [1.0])
+				
+				curr_node.next[passing_node_1] = alter_prob / 2.0
+
+				mid_note = int((next_pitch + curr_pitch) / 2)
+				if(mid_note % 12 not in e_minor and mid_note % 12 not in e_melodic):
+					mid_note = mid_note + 1
+
+				passing_note = Note(mid_note, mid_vel, mid_start, mid_end)
+				passing_node = Node(passing_note, [next_node], [1.0])
+				curr_node.next[passing_node] = alter_prob / 2.0
+
+
+				curr_node.next[next_node] = 1.0 - alter_prob
+
+
+			#passing tones, short jump
+			elif(diff > 3):
 				mid_note = int((next_pitch + curr_pitch) / 2)
 				if(mid_note % 12 not in e_minor and mid_note % 12 not in e_melodic):
 					mid_note = mid_note + 1
