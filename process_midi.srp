@@ -31,7 +31,7 @@ normal_prob = 0.6 #porbability of playing normal tempo
 offbeat_prob = 0.1 #probability of playing on an upbeat
 onbeat_prob = 1.0 #probability of playing on a downbeat
 skip_prob = 0.0 #probability of skipping a note in the motif
-alter_prob = .5
+alter_prob = 0.5
 
 e_minor = [4,6,7,9,11,0,2]
 e_melodic = [1,3]
@@ -153,7 +153,6 @@ def poll(midi_in, midi_out):
         data = midi_read(midi_in)
         data[0] = timestamp
         arr = decode(data[1])
-        print "MESSAGE: ", arr
         if(data != nil):
             #note on
             if(is_note_msg(data[1]) == 9):
@@ -288,12 +287,12 @@ def control(midi_control):
                 print "onbeat_prob: ",onbeat_prob
 
             elif(msg_type == 11 and control == 4):
-                offbeat_prob = controller_val / (127)
+                offbeat_prob = controller_val / (127 * 2)
                 print "offbeat_prob", offbeat_prob
 
             elif(msg_type == 11 and control == 5):
-                double_prob = controller_val / (127 * 2)
-                half_prob = controller_val / (127 * 2)
+                double_prob = controller_val / (127 * 4)
+                half_prob = controller_val / (127 * 4)
                 print "double_prob", double_prob
                 normal_prob = 1 - half_prob - double_prob
 

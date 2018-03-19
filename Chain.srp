@@ -53,9 +53,6 @@ class Chain:
 			mid_vel = int(abs(next_note.get_vel() + curr_note.get_vel()) / 2)
 
 			#neighbors
-			rand = random()
-			print rand
-
 			if(diff == 0):
 				pitch_class = curr_pitch % 12
 				if(pitch_class == e_minor[0] or pitch_class == e_minor[5]):
