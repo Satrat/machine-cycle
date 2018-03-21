@@ -3,22 +3,17 @@ require "Note.srp"
 
 class Node:
 	var note
-	var next #dictionary of possible next notes
-	var true_next #next note in the original melody, type node, nil if last note
+	var next
+	var true_next
 
-	#param n: note instance
-	#param nxt_nodes: list of possible nodes to move to, true_next always first
-	#param nxt_probs: list of probabilities for nxt_nodes list
 	def init(n, nxt_nodes, nxt_probs):
 		this.note = n
-		if(nxt_nodes == []): #we have reached the last note in the melody
+		if(nxt_nodes == []):
 			this.next = {} 
 			this.true_next = nil
 		else:
 			this.true_next = nxt_nodes[0]
 			this.next = {}
-
-			#create a dictionary from nxt_nodes and nxt_probs
 			for i = 0 to len(nxt_nodes):
 				next_n = nxt_nodes[i]
 				next_p = nxt_probs[i]

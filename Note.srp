@@ -3,8 +3,8 @@ require "sched"
 class Note:
 	var pitch
 	var velocity
-	var on_time #start time within measure in seconds
-	var off_time #stop time within measure in seconds
+	var on_time
+	var off_time
 
 	def init(p,v,on,off):
 		this.pitch = p

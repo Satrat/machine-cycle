@@ -22,7 +22,7 @@ curr_measure = [] #notes received in current meassure
 curr_seen = [] #note on messages received during current measure, no repeats
 meas_len = get_meas_len(tempo, numBeats) #in seconds
 measure_table = [[],[],[],[],[]] #last 5 recorded measures
-measure_chains = [[],[],[],[],[]] #markov chains of last 5 recorded measures
+measure_chains = [[],[],[],[],[]]
 currPos = 0 #index in measure_table currently being recorded
 
 half_prob = 0.2 #probability of playing half tempo
@@ -31,23 +31,21 @@ normal_prob = 0.6 #porbability of playing normal tempo
 offbeat_prob = 0.1 #probability of playing on an upbeat
 onbeat_prob = 1.0 #probability of playing on a downbeat
 skip_prob = 0.0 #probability of skipping a note in the motif
-alter_prob = 0.5 #probability of melody alteration
+alter_prob = 0.5
 
 e_minor = [4,6,7,9,11,0,2]
 e_melodic = [1,3]
-patterns_seen = 0 #number of melodies currently stored
+patterns_seen = 0
 
 
-#returns 8 if note off, 9 if note on, 11 if cc, 0 otherwise
 def is_note_msg(msg):
     arr = decode(msg)
     msg_type = (arr[0] & 0xF0) >> 4
 
-    #note off
     if(msg_type == 9 and arr[2] == 0):
         return 8
 
-    # note on
+    # note on, append to curr_seen
     elif(msg_type == 9):
         return 9
 
@@ -62,7 +60,6 @@ def is_note_msg(msg):
     #anything else
     return 0
 
-#UNUSED
 #quantize note on messages to the nearest sixteenth note
 def quantize_on(bpm, beats, time):
     m_len = int(get_meas_len(bpm, beats) * 1000)
@@ -79,7 +76,6 @@ def quantize_on(bpm, beats, time):
     print "time", time, "quantized", quantized / 1000.
     return quantized / 1000.
 
-#UNUSED
 #quantize note off messages to sixteen notes, always round up a sixteenth
 #to be sure note off message doesn't occur before the note on messages
 def quantize_off(bpm, beats, time): 
@@ -91,8 +87,6 @@ def quantize_off(bpm, beats, time):
     print "time", time, "quantized", quantized / 1000.
     return quantized / 1000.
 
-#comparison funciton for note data type
-#returns true if n1 has an earlier start time than n2, false otherwise
 def compare_notes(n1, n2):
     t1 = n1.get_start()
     t2 = n2.get_start()
@@ -103,18 +97,17 @@ def compare_notes(n1, n2):
 def poll(midi_in, midi_out):
     timestamp = sched_rtime - start
     if(timestamp > meas_len):
-        #start = time_get()
-        start = sched_rtime #UNTESTED
-
-        # transform measure into markov chain
+        start = time_get()
+        #start = sched_rtime
         if(curr_measure != []):
+            #make sure all notes are off at the end of the measure
+            #for n in curr_seen:
+            #    curr_measure.append([meas_len,chr(0x80) + chr(n) + chr(0)])
 
             vel_dict = {}
             start_dict = {}
             note_list = []
 
-            #create dictionary of start times and velocities for each pitch
-            #match note off to note on messages of same pitch to create list of note objects
             for n in curr_measure:
                 t = n[0]
                 m = n[1]
@@ -134,7 +127,6 @@ def poll(midi_in, midi_out):
                     note = Note(pitch, velocity, start_time, stop_time)
                     note_list.append(note)
 
-            #turn off any notes that are still on at the end of the measure
             for pitch in start_dict.keys():
                 velocty = vel_dict[pitch]
                 start_time = start_dict[pitch]
@@ -143,7 +135,7 @@ def poll(midi_in, midi_out):
                 note = Note(pitch, velocity, start_time, stop_time)
                 note_list.append(note)
 
-            #if we received at least one note on message, create a markov chain and update globals
+            #if we received at least one note on message 
             if(len(note_list) >= 1):
                 notes_sorted = note_list.sort('compare_notes')
                 chain = Chain(notes_sorted, alter_prob, skip_prob)
@@ -153,7 +145,6 @@ def poll(midi_in, midi_out):
                 currPos = (currPos + 1) % 5
                 patterns_seen = patterns_seen + 1
 
-        #reset current measure
         curr_measure = []
         curr_seen = []
 
@@ -170,10 +161,16 @@ def poll(midi_in, midi_out):
                 if(arr[1] not in curr_seen):
                         curr_seen.append(arr[1])
 
+                #print "old data", data[0]
+                #data[0] = quantize_on(tempo, numBeats, data[0])
+                #print "new data", data[0]
                 curr_measure.append(data)
 
             #note off
             elif(is_note_msg(data[1]) == 8):
+                #print "old data", data[0]
+                #data[0] = quantize_off(tempo, numBeats, data[0])
+                #print "new data", data[0]
                 curr_measure.append(data)
 
     #poll for work again
