@@ -1,2 +1,3 @@
-# Cycle
-Intelligent Looper
+# Machine Cycle
+
+Algorithmic composition using markov chains
