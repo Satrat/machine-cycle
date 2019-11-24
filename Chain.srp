@@ -66,13 +66,13 @@ class Chain:
 					UN = Note(curr_pitch + 1, mid_vel, mid_start, mid_end)
 				else:
 					lp = pitch_class - 2
-					if(lp % 12 not in e_minor and lp % 12 not in e_melodic):
+					if(lp % 12 not in e_minor):
 					 	lp = lp + 1
 					lp_offset = pitch_class - lp
 					LN = Note(curr_pitch - lp_offset, mid_vel, mid_start, mid_end)
 
 					up = pitch_class + 2
-					if(up % 12 not in e_minor and up % 12 not in e_melodic):
+					if(up % 12 not in e_minor):
 					 	up = up - 1
 					up_offset = up - pitch_class
 					UN = Note(curr_pitch + up_offset, mid_vel, mid_start, mid_end)
@@ -97,9 +97,9 @@ class Chain:
 				mid_note = int((next_pitch + curr_pitch) / 2)
 				mid_note_1 = int((curr_pitch + mid_note) / 2)
 				mid_note_2 = int((next_pitch + mid_note) / 2)
-				if(mid_note_1 % 12 not in e_minor and mid_note_1 % 12 not in e_melodic):
+				if(mid_note_1 % 12 not in e_minor):
 					mid_note_1 = mid_note_1 + 1
-				if(mid_note_2 % 12 not in e_minor and mid_note_2 % 12 not in e_melodic):
+				if(mid_note_2 % 12 not in e_minor):
 					mid_note_2 = mid_note_2 - 1
 
 				passing_note_1 = Note(mid_note_1, mid_vel, mid_start_1, mid_start_2)
@@ -111,7 +111,7 @@ class Chain:
 				curr_node.next[passing_node_1] = alter_prob / 2.0
 
 				mid_note = int((next_pitch + curr_pitch) / 2)
-				if(mid_note % 12 not in e_minor and mid_note % 12 not in e_melodic):
+				if(mid_note % 12 not in e_minor):
 					mid_note = mid_note + 1
 
 				passing_note = Note(mid_note, mid_vel, mid_start, mid_end)
@@ -125,7 +125,7 @@ class Chain:
 			#passing tones, short jump
 			elif(diff > 3):
 				mid_note = int((next_pitch + curr_pitch) / 2)
-				if(mid_note % 12 not in e_minor and mid_note % 12 not in e_melodic):
+				if(mid_note % 12 not in e_minor):
 					mid_note = mid_note + 1
 
 				passing_note = Note(mid_note, mid_vel, mid_start, mid_end)
